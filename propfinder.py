@@ -1,104 +1,32 @@
-import streamlit as st
-import pandas as pd
-import requests
+from nba_api.stats.endpoints import scoreboardv2
 from datetime import datetime
+import pandas as pd
+import streamlit as st
 
-# Your API key
-API_KEY = "a0aa179b-cb67-4e18-83de-9129696658ea"
-
-# Function to fetch today's games
+# Function to fetch today's NBA games
 def fetch_todays_games():
     today = datetime.now().strftime("%Y-%m-%d")
-    url = f"https://www.balldontlie.io/api/v1/games?start_date={today}&end_date={today}"
-    headers = {
-        'Authorization': API_KEY,
-        'Accept': 'application/json'
-    }
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        if "application/json" in response.headers.get("Content-Type", ""):
-            data = response.json()
-            if 'data' in data and len(data['data']) > 0:
-                return data['data']
-            else:
-                st.warning(f"No games found for today ({today}).")
-                return []
-        else:
-            st.error("Received non-JSON response from the API.")
-            st.write("Raw response content:", response.text)
-            return []
-    except requests.exceptions.RequestException as e:
+        scoreboard = scoreboardv2.ScoreboardV2(game_date=today)
+        games = scoreboard.get_data_frames()[0]  # DataFrame of games
+        return games
+    except Exception as e:
         st.error(f"Failed to fetch games: {e}")
-        return []
-
-# Function to fetch player stats for a specific game
-def fetch_game_stats(game_id):
-    url = f"https://www.balldontlie.io/api/v1/stats?game_ids[]={game_id}"
-    headers = {
-        'Authorization': API_KEY,
-        'Accept': 'application/json'
-    }
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        if "application/json" in response.headers.get("Content-Type", ""):
-            data = response.json()
-            if 'data' in data and len(data['data']) > 0:
-                return data['data']
-            else:
-                st.warning(f"No player stats found for game ID {game_id}.")
-                return []
-        else:
-            st.error("Received non-JSON response from the API.")
-            st.write("Raw response content:", response.text)
-            return []
-    except requests.exceptions.RequestException as e:
-        st.error(f"Failed to fetch stats: {e}")
-        return []
-
-# Analyze and identify best props
-def analyze_props(stats):
-    if not stats:
         return pd.DataFrame()
 
-    df = pd.DataFrame(stats)
-    df = df[["player", "pts", "reb", "ast", "fg_pct"]]
-    df["player_name"] = df["player"].apply(lambda x: f"{x['first_name']} {x['last_name']}")
-    df = df.drop("player", axis=1)
-
-    # Identify standout performances
-    df["Consistent_Scorer"] = df["pts"] > 20  # Players who scored more than 20 points
-    df["Dominant_Rebounder"] = df["reb"] > 10  # Players with more than 10 rebounds
-    df["Playmaker"] = df["ast"] > 8  # Players with more than 8 assists
-
-    return df
-
-# Streamlit app
+# Streamlit App
 def main():
     st.title("NBA Best Props Finder for Today")
     st.write("Automatically pulling and analyzing player stats for all NBA games happening today.")
 
     st.subheader("Fetching Today's Games")
     games = fetch_todays_games()
-    if not games:
+    if games.empty:
         st.warning("No games found for today.")
         return
 
-    all_stats = []
-    for game in games:
-        game_id = game["id"]
-        st.write(f"Fetching stats for game ID {game_id}...")
-        stats = fetch_game_stats(game_id)
-        all_stats.extend(stats)
-
-    st.subheader("Analyzing Today's Player Stats")
-    analyzed_props = analyze_props(all_stats)
-    if analyzed_props.empty:
-        st.warning("No player stats available for today.")
-    else:
-        st.write("Best Props for Today")
-        st.dataframe(analyzed_props)
+    st.write("Today's Games:")
+    st.dataframe(games)
 
 if __name__ == "__main__":
     main()
