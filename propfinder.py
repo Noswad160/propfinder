@@ -11,7 +11,7 @@ def fetch_todays_games():
         games = scoreboard.get_data_frames()[0]
         return games
     except Exception as e:
-        st.error(f"Failed to fetch games: {e}")
+        st.error(f"Failed to fetch games: {e}")'
         return pd.DataFrame()
 
 # Fetch player stats for a specific game
