@@ -1,53 +1,69 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from nba_api.stats.endpoints import playergamelog, commonplayerinfo
-from nba_api.stats.static import players
-from nba_api.stats.library.parameters import SeasonAll
+import requests
+from datetime import datetime
 
-# Helper function to fetch player game logs
-@st.cache
-def fetch_player_game_logs(player_name, season="2023-24"):
-    player_dict = players.get_players()
-    player = next((p for p in player_dict if p["full_name"].lower() == player_name.lower()), None)
-    if not player:
-        return None
+# Function to fetch today's games
+def fetch_todays_games():
+    today = datetime.now().strftime("%Y-%m-%d")
+    url = f"https://www.balldontlie.io/api/v1/games?start_date={today}&end_date={today}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()['data']
+    else:
+        st.error("Failed to fetch today's games.")
+        return []
 
-    player_id = player["id"]
-    game_log = playergamelog.PlayerGameLog(player_id=player_id, season=season).get_data_frames()[0]
-    return game_log
+# Function to fetch player stats for a specific game
+def fetch_game_stats(game_id):
+    url = f"https://www.balldontlie.io/api/v1/stats?game_ids[]={game_id}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()['data']
+    else:
+        st.error(f"Failed to fetch stats for game ID {game_id}.")
+        return []
 
-# Calculate consistency metrics
-def calculate_consistency(game_log, stat_column, target_line):
-    game_log['Over_Hit'] = game_log[stat_column] > target_line
-    hit_rate = game_log['Over_Hit'].mean()
-    return hit_rate
+# Analyze and identify best props
+def analyze_props(stats):
+    if not stats:
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(stats)
+    df = df[["player", "pts", "reb", "ast", "fg_pct"]]
+    df["player_name"] = df["player"].apply(lambda x: x["first_name"] + " " + x["last_name"])
+    df = df.drop("player", axis=1)
 
-# Streamlit App
+    # Example of identifying players exceeding thresholds
+    df["Consistent_Scorer"] = df["pts"] > 20  # Players who scored more than 20 points
+    df["Dominant_Rebounder"] = df["reb"] > 10  # Players with more than 10 rebounds
+    df["Playmaker"] = df["ast"] > 8  # Players with more than 8 assists
+
+    return df
+
+# Streamlit app
 def main():
-    st.title("NBA Player Props Consistency Analyzer")
+    st.title("NBA Best Props Finder for Today")
+    st.write("Automatically pulling and analyzing player stats for all NBA games happening today.")
 
-    st.sidebar.header("Filter Options")
-    season = st.sidebar.selectbox("Select Season", ["2023-24", "2022-23", "2021-22"])
-    stat_to_analyze = st.sidebar.selectbox("Statistic to Analyze", ["PTS", "REB", "AST"])
-    target_line = st.sidebar.number_input("Enter Target Line", value=20.0, step=0.5)
-    player_name = st.sidebar.text_input("Enter Player Name", value="LeBron James")
+    games = fetch_todays_games()
+    if not games:
+        st.warning("No games found for today.")
+        return
 
-    st.subheader("Player Analysis")
+    all_stats = []
+    for game in games:
+        game_id = game["id"]
+        stats = fetch_game_stats(game_id)
+        all_stats.extend(stats)
 
-    if st.sidebar.button("Analyze"):
-        game_log = fetch_player_game_logs(player_name, season=season)
-
-        if game_log is not None:
-            st.write(f"Game Log for {player_name} ({season}):")
-            st.dataframe(game_log[[stat_to_analyze, 'MATCHUP', 'WL', 'PTS', 'REB', 'AST']])
-
-            hit_rate = calculate_consistency(game_log, stat_to_analyze, target_line)
-            st.write(f"Consistency: {hit_rate:.2%} of games exceed the line of {target_line} for {stat_to_analyze}.")
-        else:
-            st.error(f"Player {player_name} not found. Please check the name and try again.")
-
-    st.write("Use the sidebar to adjust filters and run the analysis.")
+    st.subheader("Analyzing Today's Player Stats")
+    analyzed_props = analyze_props(all_stats)
+    if analyzed_props.empty:
+        st.warning("No player stats available for today.")
+    else:
+        st.write("Best Props for Today")
+        st.dataframe(analyzed_props)
 
 if __name__ == "__main__":
     main()
