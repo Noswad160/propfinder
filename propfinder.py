@@ -10,20 +10,25 @@ def fetch_todays_games():
     try:
         response = requests.get(url)
         response.raise_for_status()
-        if response.status_code == 200:
-            data = response.json()
-            if 'data' in data:
-                return data['data']
-            else:
-                st.error("Unexpected response format from the API.")
-                st.write(data)  # Log the unexpected response
-                return []
+
+        # Handle completely empty responses
+        if response.text.strip() == "":
+            st.error("The API returned an empty response. No data available.")
+            return []
+
+        # Handle invalid or unexpected responses
+        data = response.json()
+        if 'data' in data and len(data['data']) > 0:
+            return data['data']
         else:
-            st.error(f"API request failed with status code {response.status_code}")
-            st.write(response.text)  # Log the error response for debugging
+            st.warning(f"No games found for today ({today}).")
+            st.write("Raw API response:", data)
             return []
     except requests.exceptions.RequestException as e:
         st.error(f"Failed to fetch games: {e}")
+        return []
+    except ValueError:
+        st.error("The API returned invalid JSON. Please check the API or try again later.")
         return []
 
 # Function to fetch player stats for a specific game
@@ -32,20 +37,25 @@ def fetch_game_stats(game_id):
     try:
         response = requests.get(url)
         response.raise_for_status()
-        if response.status_code == 200:
-            data = response.json()
-            if 'data' in data:
-                return data['data']
-            else:
-                st.error("Unexpected response format from the API.")
-                st.write(data)  # Log the unexpected response
-                return []
+
+        # Handle completely empty responses
+        if response.text.strip() == "":
+            st.error("The API returned an empty response for game stats. No data available.")
+            return []
+
+        # Handle invalid or unexpected responses
+        data = response.json()
+        if 'data' in data and len(data['data']) > 0:
+            return data['data']
         else:
-            st.error(f"API request failed with status code {response.status_code}")
-            st.write(response.text)  # Log the error response for debugging
+            st.warning(f"No player stats found for game ID {game_id}.")
+            st.write("Raw API response:", data)
             return []
     except requests.exceptions.RequestException as e:
         st.error(f"Failed to fetch stats: {e}")
+        return []
+    except ValueError:
+        st.error("The API returned invalid JSON for game stats. Please check the API or try again later.")
         return []
 
 # Analyze and identify best props
@@ -58,7 +68,7 @@ def analyze_props(stats):
     df["player_name"] = df["player"].apply(lambda x: x["first_name"] + " " + x["last_name"])
     df = df.drop("player", axis=1)
 
-    # Example of identifying players exceeding thresholds
+    # Identify standout performances
     df["Consistent_Scorer"] = df["pts"] > 20  # Players who scored more than 20 points
     df["Dominant_Rebounder"] = df["reb"] > 10  # Players with more than 10 rebounds
     df["Playmaker"] = df["ast"] > 8  # Players with more than 8 assists
