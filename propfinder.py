@@ -3,23 +3,30 @@ import pandas as pd
 import requests
 from datetime import datetime
 
+# Your API key
+API_KEY = "a0aa179b-cb67-4e18-83de-9129696658ea"
+
 # Function to fetch today's games
 def fetch_todays_games():
     today = datetime.now().strftime("%Y-%m-%d")
     url = f"https://www.balldontlie.io/api/v1/games?start_date={today}&end_date={today}"
+    headers = {
+        'Authorization': API_KEY,
+        'Accept': 'application/json'
+    }
     try:
-        response = requests.get(url)
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
-        if response.headers.get('Content-Type') == 'application/json':
+        if "application/json" in response.headers.get("Content-Type", ""):
             data = response.json()
-            if 'data' in data and data['data']:
+            if 'data' in data and len(data['data']) > 0:
                 return data['data']
             else:
                 st.warning(f"No games found for today ({today}).")
                 return []
         else:
             st.error("Received non-JSON response from the API.")
-            st.write(response.text)  # Log the raw response for debugging
+            st.write("Raw response content:", response.text)
             return []
     except requests.exceptions.RequestException as e:
         st.error(f"Failed to fetch games: {e}")
@@ -28,19 +35,23 @@ def fetch_todays_games():
 # Function to fetch player stats for a specific game
 def fetch_game_stats(game_id):
     url = f"https://www.balldontlie.io/api/v1/stats?game_ids[]={game_id}"
+    headers = {
+        'Authorization': API_KEY,
+        'Accept': 'application/json'
+    }
     try:
-        response = requests.get(url)
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
-        if response.headers.get('Content-Type') == 'application/json':
+        if "application/json" in response.headers.get("Content-Type", ""):
             data = response.json()
-            if 'data' in data and data['data']:
+            if 'data' in data and len(data['data']) > 0:
                 return data['data']
             else:
                 st.warning(f"No player stats found for game ID {game_id}.")
                 return []
         else:
             st.error("Received non-JSON response from the API.")
-            st.write(response.text)  # Log the raw response for debugging
+            st.write("Raw response content:", response.text)
             return []
     except requests.exceptions.RequestException as e:
         st.error(f"Failed to fetch stats: {e}")
@@ -50,31 +61,37 @@ def fetch_game_stats(game_id):
 def analyze_props(stats):
     if not stats:
         return pd.DataFrame()
+
     df = pd.DataFrame(stats)
     df = df[["player", "pts", "reb", "ast", "fg_pct"]]
     df["player_name"] = df["player"].apply(lambda x: f"{x['first_name']} {x['last_name']}")
     df = df.drop("player", axis=1)
+
     # Identify standout performances
     df["Consistent_Scorer"] = df["pts"] > 20  # Players who scored more than 20 points
     df["Dominant_Rebounder"] = df["reb"] > 10  # Players with more than 10 rebounds
     df["Playmaker"] = df["ast"] > 8  # Players with more than 8 assists
+
     return df
 
 # Streamlit app
 def main():
     st.title("NBA Best Props Finder for Today")
     st.write("Automatically pulling and analyzing player stats for all NBA games happening today.")
+
     st.subheader("Fetching Today's Games")
     games = fetch_todays_games()
     if not games:
         st.warning("No games found for today.")
         return
+
     all_stats = []
     for game in games:
         game_id = game["id"]
         st.write(f"Fetching stats for game ID {game_id}...")
         stats = fetch_game_stats(game_id)
         all_stats.extend(stats)
+
     st.subheader("Analyzing Today's Player Stats")
     analyzed_props = analyze_props(all_stats)
     if analyzed_props.empty:
