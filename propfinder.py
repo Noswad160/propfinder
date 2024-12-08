@@ -1,6 +1,18 @@
-from nba_api.stats.endpoints import boxscoretraditionalv2
+from nba_api.stats.endpoints import scoreboardv2, boxscoretraditionalv2
+from datetime import datetime
 import pandas as pd
 import streamlit as st
+
+# Function to fetch today's NBA games
+def fetch_todays_games():
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        scoreboard = scoreboardv2.ScoreboardV2(game_date=today)
+        games = scoreboard.get_data_frames()[0]  # DataFrame of games
+        return games
+    except Exception as e:
+        st.error(f"Failed to fetch games: {e}")
+        return pd.DataFrame()
 
 # Function to fetch player stats for a specific game
 def fetch_player_stats(game_id):
@@ -14,16 +26,18 @@ def fetch_player_stats(game_id):
 
 # Streamlit App
 def main():
-    st.title("NBA Best Props Finder for Today")
-    st.write("Automatically pulling and analyzing player stats for all NBA games happening today.")
+    st.title("NBA Live Props Finder for Today")
+    st.write("Pulling live game and player stats directly from the NBA API.")
 
-    # Load the games DataFrame from the uploaded file
-    file_path = '/mnt/data/2024-12-08T23-52_export.csv'
-    games = pd.read_csv(file_path)
-
-    # Display the games
+    # Fetch today's games
     st.subheader("Today's Games")
-    games_display = games[["GAME_ID", "GAME_DATE_EST", "HOME_TEAM_ID", "VISITOR_TEAM_ID", "GAME_STATUS_TEXT"]]
+    games = fetch_todays_games()
+    if games.empty:
+        st.warning("No games found for today.")
+        return
+
+    # Display games for selection
+    games_display = games[["GAME_ID", "GAME_DATE_EST", "HOME_TEAM_ID", "VISITOR_TEAM_ID"]]
     st.dataframe(games_display)
 
     # Allow user to select a game
