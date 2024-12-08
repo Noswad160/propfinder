@@ -11,7 +11,7 @@ def fetch_todays_games():
         games = scoreboard.get_data_frames()[0]
         return games
     except Exception as e:
-        st.error(f"Failed to fetch games: {e}")'
+        st.error(f"Failed to fetch games: {e}")
         return pd.DataFrame()
 
 # Fetch player stats for a specific game
@@ -59,7 +59,7 @@ def analyze_consistent_props(player_stats):
 # Streamlit App
 def main():
     st.title("NBA Live Props Finder for Today")
-    st.write("Pulling live game and player stats directly from the NBA API and identifying consistent player props.")
+    st.write("Select specific games and analyze the best player props for consistency.")
 
     # Fetch today's games
     st.subheader("Today's Games")
@@ -68,26 +68,34 @@ def main():
         st.warning("No games found for today.")
         return
 
-    st.write("Games:")
-    st.dataframe(games[["GAME_ID", "GAME_DATE_EST", "HOME_TEAM_ID", "VISITOR_TEAM_ID"]])
+    # Allow user to select multiple games
+    games["Game_Display"] = games.apply(
+        lambda row: f"{row['GAME_DATE_EST']} | Home: {row['HOME_TEAM_ID']} vs Away: {row['VISITOR_TEAM_ID']}",
+        axis=1
+    )
+    selected_games = st.multiselect(
+        "Select games to analyze:",
+        options=games["GAME_ID"],
+        format_func=lambda x: games.loc[games["GAME_ID"] == x, "Game_Display"].iloc[0],
+    )
 
-    # Iterate through each game to find consistent props
-    all_consistent_props = []
-    for game_id in games["GAME_ID"]:
-        st.write(f"Analyzing game ID: {game_id}...")
-        player_stats = fetch_player_stats(game_id)
-        if not player_stats.empty:
-            consistent_props = analyze_consistent_props(player_stats)
-            if not consistent_props.empty:
-                all_consistent_props.append(consistent_props)
+    if selected_games:
+        all_consistent_props = []
+        for game_id in selected_games:
+            st.write(f"Analyzing game ID: {game_id}...")
+            player_stats = fetch_player_stats(game_id)
+            if not player_stats.empty:
+                consistent_props = analyze_consistent_props(player_stats)
+                if not consistent_props.empty:
+                    all_consistent_props.append(consistent_props)
 
-    # Display consistent props across all games
-    if all_consistent_props:
-        st.subheader("Most Consistent Props for Today's Games")
-        all_props_df = pd.concat(all_consistent_props, ignore_index=True)
-        st.dataframe(all_props_df)
-    else:
-        st.warning("No consistent props found for today's games.")
+        # Display consistent props across selected games
+        if all_consistent_props:
+            st.subheader("Most Consistent Props for Selected Games")
+            all_props_df = pd.concat(all_consistent_props, ignore_index=True)
+            st.dataframe(all_props_df)
+        else:
+            st.warning("No consistent props found for the selected games.")
 
 if __name__ == "__main__":
     main()
