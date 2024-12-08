@@ -36,39 +36,50 @@ def main():
         st.warning("No games found for today.")
         return
 
-    # Display the available columns for debugging
-    st.write("Available columns in the games DataFrame:", games.columns)
+    st.write("Here is the full games DataFrame for debugging:")
+    st.dataframe(games)
 
-    # Attempt to display the expected columns if they exist
-    expected_columns = ["GAME_ID", "GAME_DATE_EST", "HOME_TEAM_ABBREVIATION", "VISITOR_TEAM_ABBREVIATION"]
-    if all(col in games.columns for col in expected_columns):
-        st.dataframe(games[expected_columns])
+    # Attempt to identify columns dynamically
+    game_id_col = None
+    home_team_col = None
+    away_team_col = None
+
+    # Dynamically assign column names
+    for col in games.columns:
+        if "GAME_ID" in col.upper():
+            game_id_col = col
+        if "HOME_TEAM" in col.upper():
+            home_team_col = col
+        if "AWAY_TEAM" in col.upper() or "VISITOR_TEAM" in col.upper():
+            away_team_col = col
+
+    if game_id_col and home_team_col and away_team_col:
+        st.dataframe(games[[game_id_col, home_team_col, away_team_col]])
     else:
-        st.warning("Expected columns not found in the games DataFrame. Displaying all columns instead.")
+        st.warning("Could not dynamically map expected columns. Displaying all columns instead.")
         st.dataframe(games)
 
-    # Allow user to select a game
-    game_ids = games["GAME_ID"].tolist() if "GAME_ID" in games.columns else []
-    if not game_ids:
-        st.warning("No valid GAME_IDs found.")
-        return
+    # Allow user to select a game if GAME_ID is found
+    if game_id_col:
+        game_ids = games[game_id_col].tolist()
+        selected_game = st.selectbox("Select a game to view player stats", game_ids)
 
-    selected_game = st.selectbox("Select a game to view player stats", game_ids)
-
-    if selected_game:
-        # Fetch and display player stats
-        st.subheader("Player Stats for Selected Game")
-        player_stats = fetch_player_stats(selected_game)
-        if not player_stats.empty:
-            # Filter and display relevant columns
-            relevant_columns = ["PLAYER_NAME", "PTS", "REB", "AST", "MIN"]
-            if all(col in player_stats.columns for col in relevant_columns):
-                st.dataframe(player_stats[relevant_columns])
+        if selected_game:
+            # Fetch and display player stats
+            st.subheader("Player Stats for Selected Game")
+            player_stats = fetch_player_stats(selected_game)
+            if not player_stats.empty:
+                # Filter and display relevant columns
+                relevant_columns = ["PLAYER_NAME", "PTS", "REB", "AST", "MIN"]
+                if all(col in player_stats.columns for col in relevant_columns):
+                    st.dataframe(player_stats[relevant_columns])
+                else:
+                    st.warning("Relevant columns not found in the player stats DataFrame. Displaying all columns instead.")
+                    st.dataframe(player_stats)
             else:
-                st.warning("Relevant columns not found in the player stats DataFrame. Displaying all columns instead.")
-                st.dataframe(player_stats)
-        else:
-            st.warning("No player stats available for this game.")
+                st.warning("No player stats available for this game.")
+    else:
+        st.warning("No valid GAME_ID column found in games DataFrame.")
 
 if __name__ == "__main__":
     main()
