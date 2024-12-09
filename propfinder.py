@@ -26,11 +26,11 @@ def get_team_name_mapping():
     return {team['id']: team['full_name'] for team in team_list}
 
 # Convert game time to user's local timezone
-def convert_to_local_time(est_time_str):
-    est = pytz.timezone("US/Eastern")
+def convert_to_local_time(utc_time_str):
+    utc = pytz.utc
     local_tz = datetime.now().astimezone().tzinfo  # Automatically detects user's local timezone
-    est_time = est.localize(datetime.strptime(est_time_str, "%Y-%m-%dT%H:%M:%S"))
-    local_time = est_time.astimezone(local_tz)
+    utc_time = utc.localize(datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S.%fZ"))
+    local_time = utc_time.astimezone(local_tz)
     return local_time.strftime("%Y-%m-%d %I:%M %p")  # Example: "2024-12-08 07:30 PM"
 
 # Streamlit App
@@ -51,7 +51,7 @@ def main():
     # Add readable team names and local times
     games['HOME_TEAM_NAME'] = games['HOME_TEAM_ID'].map(team_name_mapping)
     games['VISITOR_TEAM_NAME'] = games['VISITOR_TEAM_ID'].map(team_name_mapping)
-    games['LOCAL_GAME_TIME'] = games['GAME_DATE_EST'].apply(convert_to_local_time)
+    games['LOCAL_GAME_TIME'] = games['START_TIME_UTC'].apply(convert_to_local_time)
     games['Game_Display'] = games.apply(
         lambda row: f"{row['LOCAL_GAME_TIME']} | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}",
         axis=1
