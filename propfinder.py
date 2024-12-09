@@ -7,7 +7,6 @@ import streamlit as st
 
 # Fetch today's NBA games based on local time
 def fetch_todays_games():
-    # Convert local time to Eastern Time (NBA games are in EST/EDT)
     local_time = datetime.now()
     eastern_time = local_time.astimezone(pytz.timezone("US/Eastern"))
     today = eastern_time.strftime("%Y-%m-%d")
@@ -45,15 +44,25 @@ def main():
         st.warning("No games found for today.")
         return
 
+    # Display columns for debugging
+    st.write("Available columns in games DataFrame:", games.columns.tolist())
+
     # Get team name mapping
     team_name_mapping = get_team_name_mapping()
 
-    # Add readable team names and local times
+    # Add readable team names
     games['HOME_TEAM_NAME'] = games['HOME_TEAM_ID'].map(team_name_mapping)
     games['VISITOR_TEAM_NAME'] = games['VISITOR_TEAM_ID'].map(team_name_mapping)
-    games['LOCAL_GAME_TIME'] = games['START_TIME_UTC'].apply(convert_to_local_time)
+
+    # Debugging: Replace START_TIME_UTC with the correct column
+    if 'START_TIME_UTC' in games.columns:
+        games['LOCAL_GAME_TIME'] = games['START_TIME_UTC'].apply(convert_to_local_time)
+    else:
+        st.error("START_TIME_UTC column not found. Please check the available columns.")
+
     games['Game_Display'] = games.apply(
-        lambda row: f"{row['LOCAL_GAME_TIME']} | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}",
+        lambda row: f"{row['LOCAL_GAME_TIME']} | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}" 
+        if 'LOCAL_GAME_TIME' in row else f"TIME UNKNOWN | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}",
         axis=1
     )
 
