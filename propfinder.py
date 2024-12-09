@@ -1,4 +1,4 @@
-from nba_api.stats.endpoints import scoreboardv2, boxscoretraditionalv2, playergamelog
+from nba_api.stats.endpoints import scoreboardv2
 from nba_api.stats.static import teams
 from datetime import datetime
 import pandas as pd
@@ -24,12 +24,12 @@ def get_team_name_mapping():
     team_list = teams.get_teams()
     return {team['id']: team['full_name'] for team in team_list}
 
-# Convert game time to user's local timezone
-def convert_to_local_time(utc_time_str):
-    utc = pytz.utc
+# Convert GAME_DATE_EST to user's local timezone
+def convert_to_local_time(est_date_str):
+    est = pytz.timezone("US/Eastern")
     local_tz = datetime.now().astimezone().tzinfo  # Automatically detects user's local timezone
-    utc_time = utc.localize(datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%S.%fZ"))
-    local_time = utc_time.astimezone(local_tz)
+    est_time = est.localize(datetime.strptime(est_date_str, "%Y-%m-%dT%H:%M:%S"))
+    local_time = est_time.astimezone(local_tz)
     return local_time.strftime("%Y-%m-%d %I:%M %p")  # Example: "2024-12-08 07:30 PM"
 
 # Streamlit App
@@ -54,12 +54,14 @@ def main():
     games['HOME_TEAM_NAME'] = games['HOME_TEAM_ID'].map(team_name_mapping)
     games['VISITOR_TEAM_NAME'] = games['VISITOR_TEAM_ID'].map(team_name_mapping)
 
-    # Debugging: Replace START_TIME_UTC with the correct column
-    if 'START_TIME_UTC' in games.columns:
-        games['LOCAL_GAME_TIME'] = games['START_TIME_UTC'].apply(convert_to_local_time)
-    else:
-        st.error("START_TIME_UTC column not found. Please check the available columns.")
+    # Parse and convert GAME_DATE_EST to local time
+    try:
+        games['LOCAL_GAME_TIME'] = games['GAME_DATE_EST'].apply(convert_to_local_time)
+    except Exception as e:
+        st.error(f"Failed to parse and convert GAME_DATE_EST: {e}")
+        games['LOCAL_GAME_TIME'] = "Unknown Time"
 
+    # Create a readable game display
     games['Game_Display'] = games.apply(
         lambda row: f"{row['LOCAL_GAME_TIME']} | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}" 
         if 'LOCAL_GAME_TIME' in row else f"TIME UNKNOWN | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}",
