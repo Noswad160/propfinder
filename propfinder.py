@@ -1,12 +1,17 @@
 from nba_api.stats.endpoints import scoreboardv2, boxscoretraditionalv2, playergamelog
 from nba_api.stats.static import teams
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
+import pytz
 import streamlit as st
 
-# Function to fetch today's NBA games
+# Fetch today's NBA games based on local time
 def fetch_todays_games():
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Convert local time to Eastern Time (NBA games are in EST/EDT)
+    local_time = datetime.now()
+    eastern_time = local_time.astimezone(pytz.timezone("US/Eastern"))
+    today = eastern_time.strftime("%Y-%m-%d")
+
     try:
         scoreboard = scoreboardv2.ScoreboardV2(game_date=today)
         games = scoreboard.get_data_frames()[0]
