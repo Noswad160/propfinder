@@ -24,14 +24,6 @@ def get_team_name_mapping():
     team_list = teams.get_teams()
     return {team['id']: team['full_name'] for team in team_list}
 
-# Convert GAME_DATE_EST to user's local timezone
-def convert_to_local_time(est_date_str):
-    est = pytz.timezone("US/Eastern")
-    local_tz = datetime.now().astimezone().tzinfo  # Automatically detects user's local timezone
-    est_time = est.localize(datetime.strptime(est_date_str, "%Y-%m-%dT%H:%M:%S"))
-    local_time = est_time.astimezone(local_tz)
-    return local_time.strftime("%Y-%m-%d %I:%M %p")  # Example: "2024-12-08 07:30 PM"
-
 # Streamlit App
 def main():
     st.title("NBA Live Props Finder for Today")
@@ -54,17 +46,10 @@ def main():
     games['HOME_TEAM_NAME'] = games['HOME_TEAM_ID'].map(team_name_mapping)
     games['VISITOR_TEAM_NAME'] = games['VISITOR_TEAM_ID'].map(team_name_mapping)
 
-    # Parse and convert GAME_DATE_EST to local time
-    try:
-        games['LOCAL_GAME_TIME'] = games['GAME_DATE_EST'].apply(convert_to_local_time)
-    except Exception as e:
-        st.error(f"Failed to parse and convert GAME_DATE_EST: {e}")
-        games['LOCAL_GAME_TIME'] = "Unknown Time"
-
-    # Create a readable game display
+    # Use GAME_DATE_EST as fallback for time
+    games['LOCAL_GAME_TIME'] = games['GAME_DATE_EST']  # Fallback: Display date only
     games['Game_Display'] = games.apply(
-        lambda row: f"{row['LOCAL_GAME_TIME']} | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}" 
-        if 'LOCAL_GAME_TIME' in row else f"TIME UNKNOWN | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}",
+        lambda row: f"{row['LOCAL_GAME_TIME']} | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}",
         axis=1
     )
 
@@ -72,13 +57,4 @@ def main():
     selected_games = st.multiselect(
         "Select games to analyze:",
         options=games["GAME_ID"],
-        format_func=lambda x: games.loc[games["GAME_ID"] == x, "Game_Display"].iloc[0],
-    )
-
-    if selected_games:
-        st.subheader("Selected Games")
-        st.write("The following games will be analyzed:")
-        st.dataframe(games[games["GAME_ID"].isin(selected_games)][["LOCAL_GAME_TIME", "HOME_TEAM_NAME", "VISITOR_TEAM_NAME"]])
-
-if __name__ == "__main__":
-    main()
+        format_func=lambda x: games.loc[games["GAME_ID"] =
