@@ -1,9 +1,10 @@
 from nba_api.stats.endpoints import scoreboardv2, boxscoretraditionalv2, playergamelog
+from nba_api.stats.static import teams
 from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-# Fetch today's NBA games
+# Function to fetch today's NBA games
 def fetch_todays_games():
     today = datetime.now().strftime("%Y-%m-%d")
     try:
@@ -13,6 +14,11 @@ def fetch_todays_games():
     except Exception as e:
         st.error(f"Failed to fetch games: {e}")
         return pd.DataFrame()
+
+# Fetch NBA team names and IDs
+def get_team_name_mapping():
+    team_list = teams.get_teams()
+    return {team['id']: team['full_name'] for team in team_list}
 
 # Fetch player stats for a specific game
 def fetch_player_stats(game_id):
@@ -68,11 +74,18 @@ def main():
         st.warning("No games found for today.")
         return
 
-    # Allow user to select multiple games
-    games["Game_Display"] = games.apply(
-        lambda row: f"{row['GAME_DATE_EST']} | Home: {row['HOME_TEAM_ID']} vs Away: {row['VISITOR_TEAM_ID']}",
+    # Get team name mapping
+    team_name_mapping = get_team_name_mapping()
+
+    # Add readable team names
+    games['HOME_TEAM_NAME'] = games['HOME_TEAM_ID'].map(team_name_mapping)
+    games['VISITOR_TEAM_NAME'] = games['VISITOR_TEAM_ID'].map(team_name_mapping)
+    games['Game_Display'] = games.apply(
+        lambda row: f"{row['GAME_DATE_EST']} | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}",
         axis=1
     )
+
+    # Allow user to select multiple games
     selected_games = st.multiselect(
         "Select games to analyze:",
         options=games["GAME_ID"],
