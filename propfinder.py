@@ -1,6 +1,6 @@
 from nba_api.stats.endpoints import scoreboardv2, boxscoretraditionalv2, playergamelog
 from nba_api.stats.static import teams
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 import pytz
 import streamlit as st
@@ -25,47 +25,13 @@ def get_team_name_mapping():
     team_list = teams.get_teams()
     return {team['id']: team['full_name'] for team in team_list}
 
-# Fetch player stats for a specific game
-def fetch_player_stats(game_id):
-    try:
-        boxscore = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id)
-        player_stats = boxscore.get_data_frames()[0]
-        return player_stats
-    except Exception as e:
-        st.error(f"Failed to fetch player stats for game ID {game_id}: {e}")
-        return pd.DataFrame()
-
-# Fetch recent game logs for a player
-def fetch_recent_game_logs(player_id):
-    try:
-        logs = playergamelog.PlayerGameLog(player_id=player_id, season='2023-24')
-        return logs.get_data_frames()[0]
-    except Exception as e:
-        st.error(f"Failed to fetch recent game logs for player ID {player_id}: {e}")
-        return pd.DataFrame()
-
-# Analyze and find the most consistent props
-def analyze_consistent_props(player_stats):
-    consistent_players = []
-    for _, player in player_stats.iterrows():
-        player_id = player['PLAYER_ID']
-        game_logs = fetch_recent_game_logs(player_id)
-        if not game_logs.empty:
-            avg_pts = game_logs['PTS'].mean()
-            avg_reb = game_logs['REB'].mean()
-            avg_ast = game_logs['AST'].mean()
-
-            if avg_pts > 15 or avg_reb > 8 or avg_ast > 6:  # Example thresholds
-                consistent_players.append({
-                    "PLAYER_NAME": player['PLAYER_NAME'],
-                    "AVG_PTS": round(avg_pts, 1),
-                    "AVG_REB": round(avg_reb, 1),
-                    "AVG_AST": round(avg_ast, 1),
-                    "CURRENT_PTS": player['PTS'],
-                    "CURRENT_REB": player['REB'],
-                    "CURRENT_AST": player['AST']
-                })
-    return pd.DataFrame(consistent_players)
+# Convert game time to user's local timezone
+def convert_to_local_time(est_time_str):
+    est = pytz.timezone("US/Eastern")
+    local_tz = datetime.now().astimezone().tzinfo  # Automatically detects user's local timezone
+    est_time = est.localize(datetime.strptime(est_time_str, "%Y-%m-%dT%H:%M:%S"))
+    local_time = est_time.astimezone(local_tz)
+    return local_time.strftime("%Y-%m-%d %I:%M %p")  # Example: "2024-12-08 07:30 PM"
 
 # Streamlit App
 def main():
@@ -82,11 +48,12 @@ def main():
     # Get team name mapping
     team_name_mapping = get_team_name_mapping()
 
-    # Add readable team names
+    # Add readable team names and local times
     games['HOME_TEAM_NAME'] = games['HOME_TEAM_ID'].map(team_name_mapping)
     games['VISITOR_TEAM_NAME'] = games['VISITOR_TEAM_ID'].map(team_name_mapping)
+    games['LOCAL_GAME_TIME'] = games['GAME_DATE_EST'].apply(convert_to_local_time)
     games['Game_Display'] = games.apply(
-        lambda row: f"{row['GAME_DATE_EST']} | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}",
+        lambda row: f"{row['LOCAL_GAME_TIME']} | {row['HOME_TEAM_NAME']} vs {row['VISITOR_TEAM_NAME']}",
         axis=1
     )
 
@@ -98,22 +65,9 @@ def main():
     )
 
     if selected_games:
-        all_consistent_props = []
-        for game_id in selected_games:
-            st.write(f"Analyzing game ID: {game_id}...")
-            player_stats = fetch_player_stats(game_id)
-            if not player_stats.empty:
-                consistent_props = analyze_consistent_props(player_stats)
-                if not consistent_props.empty:
-                    all_consistent_props.append(consistent_props)
-
-        # Display consistent props across selected games
-        if all_consistent_props:
-            st.subheader("Most Consistent Props for Selected Games")
-            all_props_df = pd.concat(all_consistent_props, ignore_index=True)
-            st.dataframe(all_props_df)
-        else:
-            st.warning("No consistent props found for the selected games.")
+        st.subheader("Selected Games")
+        st.write("The following games will be analyzed:")
+        st.dataframe(games[games["GAME_ID"].isin(selected_games)][["LOCAL_GAME_TIME", "HOME_TEAM_NAME", "VISITOR_TEAM_NAME"]])
 
 if __name__ == "__main__":
     main()
