@@ -57,4 +57,13 @@ def main():
     selected_games = st.multiselect(
         "Select games to analyze:",
         options=games["GAME_ID"],
-        format_func=lambda x: games.loc[games["GAME_ID"] =
+        format_func=lambda x: games.loc[games["GAME_ID"] == x, "Game_Display"].iloc[0],
+    )
+
+    if selected_games:
+        st.subheader("Selected Games")
+        st.write("The following games will be analyzed:")
+        st.dataframe(games[games["GAME_ID"].isin(selected_games)][["LOCAL_GAME_TIME", "HOME_TEAM_NAME", "VISITOR_TEAM_NAME"]])
+
+if __name__ == "__main__":
+    main()
